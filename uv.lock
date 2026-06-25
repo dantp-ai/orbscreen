@@ -787,13 +787,15 @@ dependencies = [
     { name = "pymatgen" },
     { name = "scikit-learn" },
     { name = "scipy" },
-    { name = "wandb" },
 ]
 
 [package.optional-dependencies]
 dev = [
     { name = "pytest" },
     { name = "ruff" },
+]
+train = [
+    { name = "wandb" },
 ]
 
 [package.metadata]
@@ -808,9 +810,9 @@ requires-dist = [
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.6" },
     { name = "scikit-learn", specifier = ">=1.5" },
     { name = "scipy", specifier = ">=1.13" },
-    { name = "wandb", specifier = ">=0.28.0" },
+    { name = "wandb", marker = "extra == 'train'", specifier = ">=0.28.0" },
 ]
-provides-extras = ["dev"]
+provides-extras = ["dev", "train"]
 
 [[package]]
 name = "orjson"

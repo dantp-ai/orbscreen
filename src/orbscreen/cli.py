@@ -9,6 +9,7 @@ Commands:
 
 import argparse
 import json
+from pathlib import Path
 
 import pandas as pd
 
@@ -37,7 +38,11 @@ def _baseline(args) -> None:
     results: dict = {}
     for split in ["split_random", "split_topology"]:
         results[split] = train_baseline(df, split_col=split)
-    print(json.dumps(results, indent=2))
+    text = json.dumps(results, indent=2)
+    print(text)
+    if getattr(args, "out", None):
+        Path(args.out).write_text(text + "\n")
+        print(f"wrote {args.out}")
 
 
 def main() -> None:
@@ -51,6 +56,7 @@ def main() -> None:
 
     m = sub.add_parser("baseline", help="Run descriptor baseline and print metrics")
     m.add_argument("--data", default="data/dataset.parquet", help="Input Parquet path")
+    m.add_argument("--out", default=None, help="Optional path to write metrics JSON")
     m.set_defaults(func=_baseline)
 
     args = p.parse_args()

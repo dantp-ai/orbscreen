@@ -40,7 +40,11 @@ def classification_metrics(y_true, y_prob, threshold: float = 0.5) -> dict:
 
 
 def precision_at_k(y_true, score, k: int) -> float:
-    """Fraction of positives among the top-*k* ranked candidates."""
+    """Fraction of positives among the top-*k* ranked candidates.
+
+    Ties are broken by ``np.argsort`` order (stable, input-order dependent); results are
+    deterministic for a fixed input order.
+    """
     y_true, score = np.asarray(y_true, dtype=int), np.asarray(score, dtype=float)
     top = np.argsort(score)[::-1][:k]
     return float(y_true[top].mean())

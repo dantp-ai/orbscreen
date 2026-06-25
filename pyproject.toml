@@ -13,11 +13,11 @@ dependencies = [
     "pyarrow>=16.0",
     "scikit-learn>=1.5",
     "scipy>=1.13",
-    "wandb>=0.28.0",
 ]
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0", "ruff>=0.6"]
+train = ["wandb>=0.28.0"]  # Phase 2 experiment tracking (not needed for Phase 1)
 
 [project.scripts]
 orbscreen = "orbscreen.cli:main"

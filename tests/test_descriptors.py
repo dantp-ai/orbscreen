@@ -40,13 +40,11 @@ def test_feature_matrix_includes_geom_and_composition():
     assert "n_atoms" in names
 
 
-def test_feature_matrix_no_nans():
-    """NaN in geom_lcd must be filled; result has no NaN at all."""
+def test_feature_matrix_preserves_nan_for_model():
+    """Missing geometry is left as NaN (no leaky whole-dataset imputation)."""
     df = _small_df()
     X, _ = build_feature_matrix(df)
-    assert X.notna().all().all()
-    # confirm no NaN anywhere (also checks that filling worked)
-    assert not any(math.isnan(v) for row in X.values for v in row)
+    assert math.isnan(X["geom_lcd"].iloc[1])  # the intentional NaN is preserved
 
 
 def test_feature_matrix_excludes_targets_and_flags():

@@ -22,6 +22,8 @@ GEOMETRY_KEYS = [
     "asa_m2_per_g",
     "nasa_m2_per_cm3",
     "nasa_m2_per_g",
+    "channel_surface_area_fraction",
+    "pocket_surface_area_fraction",
 ]
 
 # Topology codes that are not real RCSR frameworks (excluded from the topology split).

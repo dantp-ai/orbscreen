@@ -22,6 +22,11 @@ def build_records(unrelaxed_path, relaxed_path, limit: int | None = None) -> tup
 
     Each record is flat: id, formula, n_atoms, topology, geom_* features, validity flags,
     energy_per_atom (target), geo_converged, relaxed_max_force, orb_energy_unrelaxed, stability.
+
+    The relaxed rows are indexed into a dict keyed by ``row.id`` (order-independent, which is
+    safer than assuming both DBs iterate in id order). For the full 201,926-row MofasaDB this
+    holds a few hundred MB in memory and completes in a few minutes — fine for this corpus; a
+    larger corpus would want a streaming merge.
     """
     relaxed = {row.id: (row.formula, relaxed_fields(row)) for row in connect(str(relaxed_path)).select()}
     records: list[dict] = []

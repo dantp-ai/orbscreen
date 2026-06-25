@@ -19,7 +19,12 @@ def build_feature_matrix(df: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]:
 
     - Geometry: every column whose name starts with ``"geom_"`` plus ``"n_atoms"``.
     - Composition: the output of :func:`composition_features` for each ``formula``.
-    - Non-finite values are filled with the column median then 0.0.
+    - Missing geometry values are left as NaN (HistGradientBoosting handles them
+      natively). We deliberately do NOT impute here: imputing over the whole frame
+      would leak test-split statistics into training. A model that cannot handle NaN
+      should fit an imputer on the train split only.
+    - Columns that are entirely NaN (e.g. a pyzeo descriptor that is 'None' for every
+      row) carry no signal and would break histogram binning, so they are dropped.
     - ``orb_energy_unrelaxed``, ``energy_per_atom``, ``stability``, split columns, and
       boolean flag columns are never included.
     """
@@ -32,5 +37,5 @@ def build_feature_matrix(df: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]:
     ).reset_index(drop=True)
 
     X = pd.concat([geom, comp], axis=1).apply(pd.to_numeric, errors="coerce")
-    X = X.fillna(X.median(numeric_only=True)).fillna(0.0)
+    X = X.dropna(axis=1, how="all")  # drop no-signal all-NaN columns; keep partial NaN
     return X, list(X.columns)

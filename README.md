@@ -31,14 +31,22 @@ evaluated on the held-out test split. Predicting the **relaxed** state from the
 
 | Metric | random split | topology holdout |
 |---|---|---|
-| Energy/atom MAE (eV) | 0.076 | 0.077 |
+| Energy/atom MAE (eV) | 0.076 | 0.076 |
 | Energy/atom Spearman | 0.94 | 0.92 |
-| Stability AUROC | 0.88 | 0.93 |
-| Stability AUPRC (base rate ~0.05) | 0.26 | 0.32 |
-| Enrichment @ top-10% | **5.3×** | **6.3×** |
+| Stability AUROC | 0.88 | 0.92 |
+| Stability AUPRC (base rate ~0.05) | 0.26 | 0.27 |
+| Enrichment @ top-10% | **5.2×** | **5.4×** |
 
-Screening the top 10% by predicted P(stable) recovers stable MOFs at ~5–6× the base
-rate, and the topology-holdout (unseen frameworks) holds up — the descriptors capture
-transferable stability signal. This is the floor the learned GNN surrogate must beat.
+Screening the top 10% by predicted P(stable) recovers stable MOFs at ~5× the base rate,
+and the topology-holdout (unseen frameworks) holds up as well as the random split — the
+descriptors capture transferable stability signal. This is the floor the learned GNN
+surrogate must beat.
+
+Numbers are reproducible (seed 0) and captured in `results.json`:
+
+```bash
+uv run orbscreen build --out data/dataset.parquet
+uv run orbscreen baseline --data data/dataset.parquet --out results.json
+```
 
 See `ATTRIBUTION.md` for data/model licenses.

@@ -30,6 +30,9 @@ def train_baseline(df: pd.DataFrame, split_col: str = "split_random") -> dict:
         Dict with keys ``"regression"``, ``"classification"``, ``"ranking"``.
         Ranking precision and enrichment are measured at 10 % of the test set.
     """
+    # Features may contain NaN (missing geometry); HistGradientBoosting handles NaN
+    # natively, so no imputation is needed here. The "val" split is reserved for
+    # Phase 2 (early stopping / HP tuning); Phase 1 evaluates on train/test only.
     X, _ = build_feature_matrix(df)
     train = df[split_col] == "train"
     test = df[split_col] == "test"
