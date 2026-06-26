@@ -173,8 +173,45 @@ def train_model(seed: int = 0, config: dict | None = None, data_limit: int | Non
     return f"saved {out} best_epoch={es['best_epoch']} epochs_run={es['epochs_run']} metrics={metrics}"
 
 
+@app.function(gpu="A10G", volumes={"/data": vol}, timeout=60 * 60, secrets=[WANDB, HF])
+def evaluate_models(split: str = "split_random") -> dict:
+    """Evaluate the deep ensemble on a split's test set; write results JSON to the Volume.
+
+    The ensemble is the full-data early-stopped checkpoints (ckpt_seed1..N); the limited
+    5k ckpt_seed0 is excluded. For a split whose test-graph cache is absent, the source
+    DBs are downloaded once to build it.
+    """
+    import glob
+    import json
+
+    from orbscreen.data import download
+    from orbscreen.gnn.evaluate import evaluate_ensemble
+
+    ckpts = sorted(p for p in glob.glob("/data/ckpt_seed*.pt") if "ckpt_seed0.pt" not in p)
+    if not ckpts:
+        raise SystemExit("no ensemble checkpoints found on volume")
+
+    cache = "/data/cache"
+    parquet = "/data/dataset.parquet"
+    samples = ""
+    if not Path(f"{cache}/processed/graphs_{split}_test.pt").exists():
+        paths = download.ensure_files(["samples.db", "relaxed.db"])
+        samples = str(paths["samples.db"])
+
+    res = evaluate_ensemble(ckpts, samples, parquet, split, cache_dir=cache)
+    res["checkpoints"] = [p.rsplit("/", 1)[-1] for p in ckpts]
+    Path(f"/data/results_gnn_{split}.json").write_text(json.dumps(res, indent=2))
+    vol.commit()
+    return res
+
+
 @app.local_entrypoint()
-def main(mode: str = "smoke", seed: int = 0, data_limit: int = 0, epochs: int = 0, patience: int = 0):
+def main(
+    mode: str = "smoke", seed: int = 0, data_limit: int = 0,
+    epochs: int = 0, patience: int = 0, split: str = "split_random",
+):
+    import json
+
     if mode == "smoke":
         print(smoke.remote())
     elif mode == "train":
@@ -184,5 +221,7 @@ def main(mode: str = "smoke", seed: int = 0, data_limit: int = 0, epochs: int = 
         if patience:
             cfg["patience"] = patience
         print(train_model.remote(seed=seed, config=cfg or None, data_limit=data_limit or None))
+    elif mode == "eval":
+        print(json.dumps(evaluate_models.remote(split=split), indent=2))
     else:
-        raise SystemExit(f"unknown mode: {mode!r} (use 'smoke' or 'train')")
+        raise SystemExit(f"unknown mode: {mode!r} (use 'smoke', 'train', or 'eval')")
