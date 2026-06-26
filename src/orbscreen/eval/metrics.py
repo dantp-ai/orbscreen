@@ -60,3 +60,19 @@ def enrichment_factor(y_true, score, k: int) -> float:
     if base == 0.0:
         return 0.0
     return precision_at_k(y_true, score, k) / base
+
+
+def expected_calibration_error(y_true, y_prob, n_bins: int = 10) -> float:
+    """Weighted average gap between confidence and accuracy across probability bins."""
+    y_true = np.asarray(y_true, dtype=float)
+    y_prob = np.asarray(y_prob, dtype=float)
+    bins = np.linspace(0.0, 1.0, n_bins + 1)
+    ece = 0.0
+    for lo, hi in zip(bins[:-1], bins[1:]):
+        mask = (y_prob > lo) & (y_prob <= hi)
+        if mask.sum() == 0:
+            continue
+        conf = y_prob[mask].mean()
+        acc = y_true[mask].mean()
+        ece += (mask.sum() / len(y_prob)) * abs(conf - acc)
+    return float(ece)

@@ -90,3 +90,13 @@ def fake_dbs_large(tmp_path):
         }
         relaxed.write(_atoms(n_extra=n_extra, displace=0.05), data=rdata)
     return {"samples": str(tmp_path / "s_large.db"), "relaxed": str(tmp_path / "r_large.db")}
+
+
+@pytest.fixture
+def fake_dataset(fake_dbs, tmp_path):
+    """Build a tiny dataset.parquet from fake_dbs for GNN dataset tests."""
+    from orbscreen.data.build import build_dataset
+
+    out = tmp_path / "dataset.parquet"
+    build_dataset(fake_dbs["samples"], fake_dbs["relaxed"], out)
+    return {"samples": fake_dbs["samples"], "parquet": str(out)}

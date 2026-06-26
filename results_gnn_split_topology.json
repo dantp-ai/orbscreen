@@ -1,0 +1,30 @@
+{
+  "split": "split_topology",
+  "n_models": 3,
+  "n_test": 2270,
+  "regression": {
+    "mae": 0.028665702668580716,
+    "rmse": 0.038577781239967406,
+    "spearman": 0.9888806527626467
+  },
+  "classification": {
+    "auroc": 0.9558836125672389,
+    "auprc": 0.4198735223200092,
+    "f1": 0.0
+  },
+  "ranking": {
+    "base_rate": 0.04757709251101322,
+    "precision_at_10pct": 0.3392070484581498,
+    "enrichment_at_10pct": 7.12962962962963
+  },
+  "uncertainty": {
+    "ece": 0.009823638419033479,
+    "mean_energy_std": 0.034950412809848785,
+    "mean_stab_std": 0.0077660162933170795
+  },
+  "checkpoints": [
+    "ckpt_topo_seed0.pt",
+    "ckpt_topo_seed1.pt",
+    "ckpt_topo_seed2.pt"
+  ]
+}
