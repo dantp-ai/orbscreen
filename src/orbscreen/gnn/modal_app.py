@@ -10,7 +10,20 @@ Run:
     uv run modal run src/orbscreen/gnn/modal_app.py --mode train --seed 0
 """
 
+import os
+from pathlib import Path
+
 import modal
+
+
+def _local_hf_token() -> str:
+    """Read the local HF token (env var or cached login) to authenticate downloads."""
+    token = os.environ.get("HF_TOKEN") or os.environ.get("HUGGING_FACE_HUB_TOKEN")
+    if token:
+        return token
+    cached = Path.home() / ".cache" / "huggingface" / "token"
+    return cached.read_text().strip() if cached.exists() else ""
+
 
 image = (
     modal.Image.debian_slim(python_version="3.12")
@@ -32,6 +45,9 @@ image = (
 app = modal.App("orbscreen-gnn", image=image)
 vol = modal.Volume.from_name("orbscreen-data", create_if_missing=True)
 WANDB = modal.Secret.from_name("wandb")
+# Pass the local HF token (if any) so MofasaDB downloads are authenticated; empty -> anon.
+_HF_TOKEN = _local_hf_token()
+HF = modal.Secret.from_dict({"HF_TOKEN": _HF_TOKEN} if _HF_TOKEN else {})
 
 
 def _flatten(d, prefix=""):
@@ -85,15 +101,13 @@ def smoke() -> str:
     return f"OK gpu={torch.cuda.get_device_name(0)} losses={[round(x, 4) for x in losses]}"
 
 
-@app.function(gpu="A10G", volumes={"/data": vol}, timeout=4 * 60 * 60, secrets=[WANDB])
+@app.function(gpu="A10G", volumes={"/data": vol}, timeout=4 * 60 * 60, secrets=[WANDB, HF])
 def train_model(seed: int = 0, config: dict | None = None, data_limit: int | None = None) -> str:
     """Real single-seed training on MofasaDB; writes a checkpoint to the Volume.
 
     data_limit caps the number of structures (for a cheap end-to-end check); a limited
     run uses its own parquet + graph cache so it never collides with the full dataset.
     """
-    from pathlib import Path
-
     import torch
     from torch_geometric.loader import DataLoader
 
@@ -106,15 +120,23 @@ def train_model(seed: int = 0, config: dict | None = None, data_limit: int | Non
     cfg = TrainConfig(**(config or {}))
     torch.manual_seed(seed)
 
-    paths = download.ensure_files(["samples.db", "relaxed.db"])
     suffix = f"_limit{data_limit}" if data_limit else ""
     parquet = f"/data/dataset{suffix}.parquet"
     cache = f"/data/cache{suffix}"
-    if not Path(parquet).exists():
-        build_dataset(paths["samples.db"], paths["relaxed.db"], parquet, limit=data_limit)
-        vol.commit()
+    # Only download the 4.5 GB source DBs if a graph cache is missing; ensemble runs reuse
+    # the committed caches, so they skip the download (and the HF rate-limit warning) entirely.
+    splits = ("train", "val", "test")
+    caches_present = all(
+        Path(f"{cache}/processed/graphs_split_random_{s}.pt").exists() for s in splits
+    )
+    samples = ""
+    if not caches_present:
+        paths = download.ensure_files(["samples.db", "relaxed.db"])
+        samples = str(paths["samples.db"])
+        if not Path(parquet).exists():
+            build_dataset(paths["samples.db"], paths["relaxed.db"], parquet, limit=data_limit)
+            vol.commit()
 
-    samples = str(paths["samples.db"])
     train_ds = MofaGraphDataset(samples, parquet, "split_random", "train", cache_dir=cache)
     val_ds = MofaGraphDataset(samples, parquet, "split_random", "val", cache_dir=cache)
     test_ds = MofaGraphDataset(samples, parquet, "split_random", "test", cache_dir=cache)
