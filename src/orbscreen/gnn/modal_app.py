@@ -173,7 +173,47 @@ def train_model(seed: int = 0, config: dict | None = None, data_limit: int | Non
     return f"saved {out} best_epoch={es['best_epoch']} epochs_run={es['epochs_run']} metrics={metrics}"
 
 
-@app.function(gpu="A10G", volumes={"/data": vol}, timeout=60 * 60, secrets=[WANDB, HF])
+@app.function(gpu="A10G", memory=32768, volumes={"/data": vol}, timeout=4 * 60 * 60, secrets=[WANDB, HF])
+def train_topology(seed: int = 0, config: dict | None = None) -> str:
+    """Train on the topology-holdout split, reusing the random-split graph caches
+    (re-sliced by topology in memory — no graph rebuild). Saves ckpt_topo_seed{seed}.pt.
+    """
+    import torch
+    from torch_geometric.loader import DataLoader
+
+    from orbscreen.gnn.dataset import reslice_split
+    from orbscreen.gnn.model import CrystalGNN
+    from orbscreen.gnn.train import TrainConfig, train_with_early_stopping
+
+    cfg = TrainConfig(**(config or {}))
+    torch.manual_seed(seed)
+    parquet = "/data/dataset.parquet"
+    cache = "/data/cache"
+    train_graphs = reslice_split("", parquet, cache, "split_topology", "train")
+    val_graphs = reslice_split("", parquet, cache, "split_topology", "val")
+
+    device = "cuda"
+    model = CrystalGNN(cfg.hidden, cfg.n_layers).to(device)
+    opt = torch.optim.Adam(model.parameters(), lr=cfg.lr)
+
+    import wandb
+
+    wandb.init(project="orbscreen", name=f"gnn-topo-seed{seed}", config=cfg.__dict__)
+    es = train_with_early_stopping(
+        model,
+        DataLoader(train_graphs, batch_size=cfg.batch_size, shuffle=True),
+        DataLoader(val_graphs, batch_size=cfg.batch_size),
+        opt, device, cfg.epochs, cfg.patience, cfg.w_stab, log_fn=wandb.log,
+    )
+    wandb.finish()
+    out = f"/data/ckpt_topo_seed{seed}.pt"
+    es_summary = {k: es[k] for k in ("best_epoch", "best_val_loss", "epochs_run", "stopped_early")}
+    torch.save({"state_dict": model.state_dict(), "config": cfg.__dict__, "early_stop": es_summary}, out)
+    vol.commit()
+    return f"saved {out} best_epoch={es['best_epoch']} n_train={len(train_graphs)} n_val={len(val_graphs)}"
+
+
+@app.function(gpu="A10G", memory=32768, volumes={"/data": vol}, timeout=60 * 60, secrets=[WANDB, HF])
 def evaluate_models(split: str = "split_random") -> dict:
     """Evaluate the deep ensemble on a split's test set; write results JSON to the Volume.
 
@@ -187,9 +227,12 @@ def evaluate_models(split: str = "split_random") -> dict:
     from orbscreen.data import download
     from orbscreen.gnn.evaluate import evaluate_ensemble
 
-    ckpts = sorted(p for p in glob.glob("/data/ckpt_seed*.pt") if "ckpt_seed0.pt" not in p)
+    if split == "split_topology":
+        ckpts = sorted(glob.glob("/data/ckpt_topo_seed*.pt"))
+    else:
+        ckpts = sorted(p for p in glob.glob("/data/ckpt_seed*.pt") if "ckpt_seed0.pt" not in p)
     if not ckpts:
-        raise SystemExit("no ensemble checkpoints found on volume")
+        raise SystemExit(f"no ensemble checkpoints found on volume for {split}")
 
     cache = "/data/cache"
     parquet = "/data/dataset.parquet"
@@ -221,7 +264,14 @@ def main(
         if patience:
             cfg["patience"] = patience
         print(train_model.remote(seed=seed, config=cfg or None, data_limit=data_limit or None))
+    elif mode == "train_topology":
+        cfg = {}
+        if epochs:
+            cfg["epochs"] = epochs
+        if patience:
+            cfg["patience"] = patience
+        print(train_topology.remote(seed=seed, config=cfg or None))
     elif mode == "eval":
         print(json.dumps(evaluate_models.remote(split=split), indent=2))
     else:
-        raise SystemExit(f"unknown mode: {mode!r} (use 'smoke', 'train', or 'eval')")
+        raise SystemExit(f"unknown mode: {mode!r} (use 'smoke', 'train', 'train_topology', or 'eval')")

@@ -10,19 +10,20 @@ from orbscreen.eval.metrics import (
     precision_at_k,
     regression_metrics,
 )
-from orbscreen.gnn.dataset import MofaGraphDataset
+from orbscreen.gnn.dataset import reslice_split
 from orbscreen.gnn.ensemble import ensemble_predict
 
 
 def evaluate_ensemble(checkpoints, samples_db, parquet, split, cache_dir=".graph_cache") -> dict:
     """Evaluate an ensemble of checkpoints on the test set of `split`.
 
+    The test set is sliced from the already-built graph caches (no rebuild for any split).
     Reports energy regression, stability classification, ranking (enrichment@10%), and
     uncertainty (ECE + mean predictive std from the ensemble).
     """
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    ds = MofaGraphDataset(samples_db, parquet, split, "test", cache_dir=cache_dir)
-    pred = ensemble_predict(checkpoints, DataLoader(ds, batch_size=64), device)
+    test_graphs = reslice_split(samples_db, parquet, cache_dir, split, "test")
+    pred = ensemble_predict(checkpoints, DataLoader(test_graphs, batch_size=64), device)
     y, p = pred["y_stab"], pred["stab_mean"]
     k = max(1, int(0.1 * len(y)))
     return {

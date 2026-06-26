@@ -3,6 +3,7 @@ from pathlib import Path
 import pandas as pd
 import torch
 from ase.db import connect
+from torch.utils.data import ConcatDataset
 from torch_geometric.data import InMemoryDataset
 
 from orbscreen.gnn.graph import CUTOFF, structure_to_graph
@@ -43,3 +44,27 @@ class MofaGraphDataset(InMemoryDataset):
             g.gid = torch.tensor([int(row.id)], dtype=torch.long)
             data_list.append(g)
         self.save(data_list, self.processed_paths[0])
+
+
+def _graph_ids(ds: MofaGraphDataset) -> list[int]:
+    """All gids of a cached dataset, read from the collated tensor (no per-graph materialize)."""
+    return [int(x) for x in ds._data.gid.view(-1).tolist()]
+
+
+def reslice_split(samples_db, parquet, cache_dir, target_split, value, source_split="split_random"):
+    """Build a (collated) dataset for `target_split == value` by reusing the already-built
+    `source_split` graph caches — re-slicing by gid instead of rebuilding ~200k graphs.
+
+    The source split's train/val/test caches together cover every structure, so any other
+    split can be assembled from them. Subsets stay collated (memory-efficient) via PyG
+    index-selection; a ConcatDataset stitches the parts back together.
+    """
+    df = pd.read_parquet(parquet, columns=["id", target_split])
+    keep = set(df.loc[df[target_split] == value, "id"].astype(int))
+    parts = []
+    for sv in ("train", "val", "test"):
+        ds = MofaGraphDataset(samples_db, parquet, source_split, sv, cache_dir=cache_dir)
+        idx = [i for i, gid in enumerate(_graph_ids(ds)) if gid in keep]
+        if idx:
+            parts.append(ds[idx])
+    return ConcatDataset(parts) if parts else []

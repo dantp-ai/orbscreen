@@ -1,4 +1,4 @@
-from orbscreen.gnn.dataset import MofaGraphDataset
+from orbscreen.gnn.dataset import MofaGraphDataset, reslice_split
 
 
 def test_dataset_yields_graphs_with_targets(fake_dataset, tmp_path):
@@ -20,3 +20,20 @@ def test_dataset_caches(fake_dataset, tmp_path):
     b = MofaGraphDataset(fake_dataset["samples"], fake_dataset["parquet"],
                          split="split_random", split_value="train", cache_dir=cache)
     assert len(a) == len(b)
+
+
+def test_load_all_graphs_and_reslice_by_topology(fake_dbs_large, tmp_path):
+    from orbscreen.data.build import build_dataset
+
+    parquet = str(tmp_path / "ds.parquet")
+    build_dataset(fake_dbs_large["samples"], fake_dbs_large["relaxed"], parquet)
+    cache = str(tmp_path / "c")
+    # build the three random-split caches (together they cover all structures)
+    total = sum(
+        len(MofaGraphDataset(fake_dbs_large["samples"], parquet, "split_random", v, cache_dir=cache))
+        for v in ("train", "val", "test")
+    )
+    # re-slicing by topology partitions the same graphs (no rebuild): parts sum to the whole
+    n = sum(len(reslice_split(fake_dbs_large["samples"], parquet, cache, "split_topology", v))
+            for v in ("train", "val", "test"))
+    assert total >= 1 and n == total
