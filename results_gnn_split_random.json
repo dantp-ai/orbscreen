@@ -1,0 +1,32 @@
+{
+  "split": "split_random",
+  "n_models": 5,
+  "n_test": 20194,
+  "regression": {
+    "mae": 0.036192577145200466,
+    "rmse": 0.045293960049780764,
+    "spearman": 0.9918972312869391
+  },
+  "classification": {
+    "auroc": 0.932256792988622,
+    "auprc": 0.3191908491366117,
+    "f1": 0.0
+  },
+  "ranking": {
+    "base_rate": 0.05115380806180053,
+    "precision_at_10pct": 0.31054977711738485,
+    "enrichment_at_10pct": 6.070902419272478
+  },
+  "uncertainty": {
+    "ece": 0.006416417640441095,
+    "mean_energy_std": 0.0422200970351696,
+    "mean_stab_std": 0.013662627898156643
+  },
+  "checkpoints": [
+    "ckpt_seed1.pt",
+    "ckpt_seed2.pt",
+    "ckpt_seed3.pt",
+    "ckpt_seed4.pt",
+    "ckpt_seed5.pt"
+  ]
+}
