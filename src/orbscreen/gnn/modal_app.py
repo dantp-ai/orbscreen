@@ -101,7 +101,7 @@ def train_model(seed: int = 0, config: dict | None = None, data_limit: int | Non
     from orbscreen.data.build import build_dataset
     from orbscreen.gnn.dataset import MofaGraphDataset
     from orbscreen.gnn.model import CrystalGNN
-    from orbscreen.gnn.train import TrainConfig, evaluate, train_one_epoch
+    from orbscreen.gnn.train import TrainConfig, evaluate, train_with_early_stopping
 
     cfg = TrainConfig(**(config or {}))
     torch.manual_seed(seed)
@@ -116,6 +116,7 @@ def train_model(seed: int = 0, config: dict | None = None, data_limit: int | Non
 
     samples = str(paths["samples.db"])
     train_ds = MofaGraphDataset(samples, parquet, "split_random", "train", cache_dir=cache)
+    val_ds = MofaGraphDataset(samples, parquet, "split_random", "val", cache_dir=cache)
     test_ds = MofaGraphDataset(samples, parquet, "split_random", "test", cache_dir=cache)
     vol.commit()
 
@@ -123,30 +124,43 @@ def train_model(seed: int = 0, config: dict | None = None, data_limit: int | Non
     model = CrystalGNN(cfg.hidden, cfg.n_layers).to(device)
     opt = torch.optim.Adam(model.parameters(), lr=cfg.lr)
     train_loader = DataLoader(train_ds, batch_size=cfg.batch_size, shuffle=True)
+    val_loader = DataLoader(val_ds, batch_size=cfg.batch_size)
     test_loader = DataLoader(test_ds, batch_size=cfg.batch_size)
 
     import wandb
 
     wandb.init(project="orbscreen", name=f"gnn-seed{seed}", config=cfg.__dict__)
-    for epoch in range(cfg.epochs):
-        loss = train_one_epoch(model, train_loader, opt, device)
-        wandb.log({"epoch": epoch, "train_loss": loss})
+    es = train_with_early_stopping(
+        model, train_loader, val_loader, opt, device,
+        max_epochs=cfg.epochs, patience=cfg.patience, w_stab=cfg.w_stab,
+        log_fn=wandb.log,
+    )
     metrics = evaluate(model, test_loader, device)
     wandb.log({"test/" + k: v for k, v in _flatten(metrics).items()})
+    wandb.log({"best_epoch": es["best_epoch"], "epochs_run": es["epochs_run"]})
     wandb.finish()
 
     out = f"/data/ckpt_seed{seed}.pt"
-    torch.save({"state_dict": model.state_dict(), "config": cfg.__dict__, "metrics": metrics}, out)
+    es_summary = {k: es[k] for k in ("best_epoch", "best_val_loss", "epochs_run", "stopped_early")}
+    torch.save(
+        {"state_dict": model.state_dict(), "config": cfg.__dict__,
+         "metrics": metrics, "early_stop": es_summary},
+        out,
+    )
     vol.commit()
-    return f"saved {out} metrics={metrics}"
+    return f"saved {out} best_epoch={es['best_epoch']} epochs_run={es['epochs_run']} metrics={metrics}"
 
 
 @app.local_entrypoint()
-def main(mode: str = "smoke", seed: int = 0, data_limit: int = 0, epochs: int = 0):
+def main(mode: str = "smoke", seed: int = 0, data_limit: int = 0, epochs: int = 0, patience: int = 0):
     if mode == "smoke":
         print(smoke.remote())
     elif mode == "train":
-        cfg = {"epochs": epochs} if epochs else None
-        print(train_model.remote(seed=seed, config=cfg, data_limit=data_limit or None))
+        cfg = {}
+        if epochs:
+            cfg["epochs"] = epochs
+        if patience:
+            cfg["patience"] = patience
+        print(train_model.remote(seed=seed, config=cfg or None, data_limit=data_limit or None))
     else:
         raise SystemExit(f"unknown mode: {mode!r} (use 'smoke' or 'train')")
