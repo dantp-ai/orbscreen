@@ -49,4 +49,41 @@ uv run orbscreen build --out data/dataset.parquet
 uv run orbscreen baseline --data data/dataset.parquet --out results.json
 ```
 
+## Phase 2: GNN surrogate (beats the baseline)
+
+A multi-task crystal GNN (`CrystalGNN`: atom embeddings + Gaussian-RBF edge features + `CGConv`
+message passing, with energy and stability heads) learns directly from the **unrelaxed PBC
+graph** — no hand-built descriptors, and still no Orb evaluation at inference. Trained on Modal
+(A10G) with val-based early stopping + best-checkpoint; predictions come from a **deep ensemble**
+with calibrated uncertainty.
+
+**Deep ensemble vs the descriptor baseline (test set):**
+
+| Metric | Baseline (rand) | **GNN (rand)** | Baseline (topo) | **GNN (topo)** |
+|---|---|---|---|---|
+| Energy MAE (eV/atom) | 0.076 | **0.036** | 0.076 | **0.029** |
+| Energy Spearman | 0.936 | **0.992** | 0.917 | **0.989** |
+| Stability AUROC | 0.881 | **0.932** | 0.924 | **0.956** |
+| Stability AUPRC (base ~0.05) | 0.262 | **0.319** | 0.271 | **0.420** |
+| Enrichment @ top-10% | 5.24× | **6.07×** | 5.37× | **7.13×** |
+| Calibration (ECE) | — | **0.0064** | — | **0.0098** |
+
+The GNN ensemble **halves the baseline's energy error** and lifts top-10% enrichment to ~6–7×,
+on both the random split and the **topology-holdout** (unseen RCSR frameworks), with
+well-calibrated uncertainty (ECE < 0.01). Per-split results are in
+`results_gnn_split_random.json` / `results_gnn_split_topology.json`; model details in
+`docs/model-card.md`.
+
+> Note: the topology-holdout test is the valid-topology subset (n=2,270) vs the random split's
+> full-population test (n=20,194), so absolute numbers *across* splits aren't directly
+> comparable; the GNN-vs-baseline comparison *within* each split (same test set) is fair.
+
+GNN training/eval (Modal GPU) lives in `src/orbscreen/gnn/`:
+
+```bash
+modal run src/orbscreen/gnn/modal_app.py --mode train --seed 1            # random-split model
+modal run src/orbscreen/gnn/modal_app.py --mode train_topology --seed 0   # topology-holdout model
+modal run src/orbscreen/gnn/modal_app.py --mode eval --split split_random
+```
+
 See `ATTRIBUTION.md` for data/model licenses.
