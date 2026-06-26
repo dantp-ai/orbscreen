@@ -9,3 +9,4 @@ __pycache__/
 .wandb/
 wandb/
 .superpowers/
+.graph_cache/
