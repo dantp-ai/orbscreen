@@ -18,6 +18,12 @@ dependencies = [
 [project.optional-dependencies]
 dev = ["pytest>=8.0", "ruff>=0.6"]
 train = ["wandb>=0.28.0"]  # Phase 2 experiment tracking (not needed for Phase 1)
+gnn = [
+    "torch>=2.4",
+    "torch_geometric>=2.6",
+    "wandb>=0.28.0",
+    "modal>=0.64",
+]
 
 [project.scripts]
 orbscreen = "orbscreen.cli:main"
@@ -34,6 +40,7 @@ addopts = "-q"
 testpaths = ["tests"]
 filterwarnings = [
     "ignore:Setting the shape on a NumPy array has been deprecated:DeprecationWarning",
+    "ignore:`torch.jit.script` is deprecated:DeprecationWarning",
 ]
 
 [tool.ruff]
