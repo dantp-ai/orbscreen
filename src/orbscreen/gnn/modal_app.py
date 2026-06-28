@@ -248,6 +248,37 @@ def evaluate_models(split: str = "split_random") -> dict:
     return res
 
 
+@app.function(gpu="A10G", memory=32768, volumes={"/data": vol}, timeout=2 * 60 * 60, secrets=[WANDB, HF])
+def run_screen() -> dict:
+    """Run the deep ensemble over the full corpus; write predictions + timing to the Volume.
+
+    Reuses the random-split graph caches (which together cover all ~200k structures) and the
+    full-data ensemble checkpoints (ckpt_seed1..N; the limited ckpt_seed0 is excluded).
+    """
+    import glob
+    import json
+
+    from orbscreen.data import download
+    from orbscreen.screen.inference import screen_corpus
+
+    ckpts = sorted(p for p in glob.glob("/data/ckpt_seed*.pt") if "ckpt_seed0.pt" not in p)
+    if not ckpts:
+        raise SystemExit("no ensemble checkpoints on volume")
+    cache, parquet = "/data/cache", "/data/dataset.parquet"
+    samples = ""
+    if not all(Path(f"{cache}/processed/graphs_split_random_{s}.pt").exists()
+               for s in ("train", "val", "test")):
+        paths = download.ensure_files(["samples.db", "relaxed.db"])
+        samples = str(paths["samples.db"])
+
+    df, timing = screen_corpus(ckpts, parquet, cache, samples_db=samples, device="cuda")
+    df.to_parquet("/data/screen_predictions.parquet", index=False)
+    timing["checkpoints"] = [p.rsplit("/", 1)[-1] for p in ckpts]
+    Path("/data/screen_timing.json").write_text(json.dumps(timing, indent=2))
+    vol.commit()
+    return timing
+
+
 @app.local_entrypoint()
 def main(
     mode: str = "smoke", seed: int = 0, data_limit: int = 0,
@@ -273,5 +304,10 @@ def main(
         print(train_topology.remote(seed=seed, config=cfg or None))
     elif mode == "eval":
         print(json.dumps(evaluate_models.remote(split=split), indent=2))
+    elif mode == "screen":
+        print(json.dumps(run_screen.remote(), indent=2))
     else:
-        raise SystemExit(f"unknown mode: {mode!r} (use 'smoke', 'train', 'train_topology', or 'eval')")
+        raise SystemExit(
+            f"unknown mode: {mode!r} "
+            "(use 'smoke', 'train', 'train_topology', 'eval', 'screen', or 'benchmark_orb')"
+        )
