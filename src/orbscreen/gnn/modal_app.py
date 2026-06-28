@@ -42,6 +42,8 @@ image = (
     .add_local_python_source("orbscreen")
 )
 
+orb_image = image.pip_install("orb-models>=0.5")
+
 app = modal.App("orbscreen-gnn", image=image)
 vol = modal.Volume.from_name("orbscreen-data", create_if_missing=True)
 WANDB = modal.Secret.from_name("wandb")
@@ -279,10 +281,67 @@ def run_screen() -> dict:
     return timing
 
 
+@app.function(image=orb_image, gpu="A10G", volumes={"/data": vol}, timeout=4 * 60 * 60, secrets=[HF])
+def benchmark_orb(sample: int = 300, seed: int = 0) -> dict:
+    """Measure real Orb-v3 relaxation throughput on a random-split-test sample (the step the
+    surrogate replaces). Writes /data/benchmark_orb.json. This is the only Orb-v3 spend.
+    """
+    import json
+    import random
+    import time
+
+    import numpy as np
+    import pandas as pd
+    import torch
+    from ase.optimize import FIRE
+    from ase.db import connect
+    from orb_models.forcefield import pretrained
+    from orb_models.forcefield.calculator import ORBCalculator
+
+    from orbscreen.data import download
+
+    paths = download.ensure_files(["samples.db"])  # relaxed.db not needed: we time relaxing samples
+    df = pd.read_parquet("/data/dataset.parquet", columns=["id", "split_random"])
+    test_ids = df.loc[df.split_random == "test", "id"].astype(int).tolist()
+    random.Random(seed).shuffle(test_ids)
+    pick = set(test_ids[:sample])
+
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    # NOTE: verify the exact pretrained loader name against the installed orb-models version
+    # during the sample=2 smoke (Task 8); adjust this line if the API differs.
+    orbff = pretrained.orb_v3_conservative_inf_omat(device=device)
+    calc = ORBCalculator(orbff, device=device)
+
+    times, n_fail = [], 0
+    for row in connect(str(paths["samples.db"])).select():
+        if int(row.id) not in pick:
+            continue
+        atoms = row.toatoms()
+        atoms.calc = calc
+        t0 = time.perf_counter()
+        try:
+            FIRE(atoms, logfile=None).run(fmax=0.05, steps=200)
+            times.append(time.perf_counter() - t0)
+        except Exception:
+            n_fail += 1
+    arr = np.array(times)
+    total = float(arr.sum())
+    out = {
+        "n_ok": int(len(arr)), "n_fail": int(n_fail),
+        "mean_sec_per_struct": float(arr.mean()) if len(arr) else 0.0,
+        "median_sec_per_struct": float(np.median(arr)) if len(arr) else 0.0,
+        "throughput_per_sec": (len(arr) / total) if total > 0 else 0.0,
+    }
+    Path("/data/benchmark_orb.json").write_text(json.dumps(out, indent=2))
+    vol.commit()
+    return out
+
+
 @app.local_entrypoint()
 def main(
     mode: str = "smoke", seed: int = 0, data_limit: int = 0,
     epochs: int = 0, patience: int = 0, split: str = "split_random",
+    sample: int = 300,
 ):
     import json
 
@@ -306,6 +365,8 @@ def main(
         print(json.dumps(evaluate_models.remote(split=split), indent=2))
     elif mode == "screen":
         print(json.dumps(run_screen.remote(), indent=2))
+    elif mode == "benchmark_orb":
+        print(json.dumps(benchmark_orb.remote(sample=sample, seed=seed), indent=2))
     else:
         raise SystemExit(
             f"unknown mode: {mode!r} "

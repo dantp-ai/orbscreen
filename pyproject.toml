@@ -25,6 +25,7 @@ gnn = [
     "wandb>=0.28.0",
     "modal>=0.64",
 ]
+orb = ["orb-models>=0.5"]  # Orb-v3 potential, used only by the Modal benchmark_orb run
 
 [project.scripts]
 orbscreen = "orbscreen.cli:main"
