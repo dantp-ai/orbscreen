@@ -13,6 +13,7 @@ dependencies = [
     "pyarrow>=16.0",
     "scikit-learn>=1.5",
     "scipy>=1.13",
+    "matplotlib>=3.8",
 ]
 
 [project.optional-dependencies]
@@ -24,6 +25,8 @@ gnn = [
     "wandb>=0.28.0",
     "modal>=0.64",
 ]
+orb = ["orb-models==0.5.1"]  # last release with both the orb-v3 loaders and the ASE
+# ORBCalculator (0.6+ dropped it); used only by the Modal benchmark_orb run.
 
 [project.scripts]
 orbscreen = "orbscreen.cli:main"

@@ -25,18 +25,33 @@ def _local_hf_token() -> str:
     return cached.read_text().strip() if cached.exists() else ""
 
 
-image = (
+# Shared dependency layers. `add_local_python_source` must be the LAST step on each
+# image (Modal forbids build steps after add_local_*), so derive both images from a
+# common base and append the local source last on each.
+base_image = modal.Image.debian_slim(python_version="3.12").pip_install(
+    "torch>=2.4",
+    "torch_geometric>=2.6",
+    "ase>=3.23",
+    "pymatgen>=2024.5.1",
+    "pandas>=2.2",
+    "pyarrow>=16.0",
+    "scikit-learn>=1.5",
+    "scipy>=1.13",
+    "wandb>=0.28.0",
+    "huggingface_hub>=0.24",
+)
+
+image = base_image.add_local_python_source("orbscreen")
+
+# orb-models 0.5.1 is the last release shipping the ASE ORBCalculator + atomic_system modules
+# AND the orb-v3 loaders (0.6+ dropped the calculator; 0.4.x predates orb-v3). orb-models pulls
+# its own torch/ase; this lean image does NOT need the GNN extras (torch_geometric, pymatgen).
+orb_image = (
     modal.Image.debian_slim(python_version="3.12")
     .pip_install(
-        "torch>=2.4",
-        "torch_geometric>=2.6",
-        "ase>=3.23",
-        "pymatgen>=2024.5.1",
+        "orb-models==0.5.1",
         "pandas>=2.2",
         "pyarrow>=16.0",
-        "scikit-learn>=1.5",
-        "scipy>=1.13",
-        "wandb>=0.28.0",
         "huggingface_hub>=0.24",
     )
     .add_local_python_source("orbscreen")
@@ -248,10 +263,96 @@ def evaluate_models(split: str = "split_random") -> dict:
     return res
 
 
+@app.function(gpu="A10G", memory=32768, volumes={"/data": vol}, timeout=2 * 60 * 60, secrets=[WANDB, HF])
+def run_screen() -> dict:
+    """Run the deep ensemble over the full corpus; write predictions + timing to the Volume.
+
+    Reuses the random-split graph caches (which together cover all ~200k structures) and the
+    full-data ensemble checkpoints (ckpt_seed1..N; the limited ckpt_seed0 is excluded).
+    """
+    import glob
+    import json
+
+    from orbscreen.data import download
+    from orbscreen.screen.inference import screen_corpus
+
+    ckpts = sorted(p for p in glob.glob("/data/ckpt_seed*.pt") if "ckpt_seed0.pt" not in p)
+    if not ckpts:
+        raise SystemExit("no ensemble checkpoints on volume")
+    cache, parquet = "/data/cache", "/data/dataset.parquet"
+    samples = ""
+    if not all(Path(f"{cache}/processed/graphs_split_random_{s}.pt").exists()
+               for s in ("train", "val", "test")):
+        paths = download.ensure_files(["samples.db", "relaxed.db"])
+        samples = str(paths["samples.db"])
+
+    df, timing = screen_corpus(ckpts, parquet, cache, samples_db=samples, device="cuda")
+    df.to_parquet("/data/screen_predictions.parquet", index=False)
+    timing["checkpoints"] = [p.rsplit("/", 1)[-1] for p in ckpts]
+    Path("/data/screen_timing.json").write_text(json.dumps(timing, indent=2))
+    vol.commit()
+    return timing
+
+
+@app.function(image=orb_image, gpu="A10G", volumes={"/data": vol}, timeout=4 * 60 * 60, secrets=[HF])
+def benchmark_orb(sample: int = 300, seed: int = 0) -> dict:
+    """Measure real Orb-v3 relaxation throughput on a random-split-test sample (the step the
+    surrogate replaces). Writes /data/benchmark_orb.json. This is the only Orb-v3 spend.
+    """
+    import json
+    import random
+    import time
+
+    import numpy as np
+    import pandas as pd
+    import torch
+    from ase.optimize import FIRE
+    from ase.db import connect
+    from orb_models.forcefield import pretrained
+    from orb_models.forcefield.calculator import ORBCalculator
+
+    from orbscreen.data import download
+
+    paths = download.ensure_files(["samples.db"])  # relaxed.db not needed: we time relaxing samples
+    df = pd.read_parquet("/data/dataset.parquet", columns=["id", "split_random"])
+    test_ids = df.loc[df.split_random == "test", "id"].astype(int).tolist()
+    random.Random(seed).shuffle(test_ids)
+    pick = set(test_ids[:sample])
+
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    orbff = pretrained.orb_v3_conservative_inf_omat(device=device)
+    calc = ORBCalculator(orbff, device=device)
+
+    times, n_fail = [], 0
+    for row in connect(str(paths["samples.db"])).select():
+        if int(row.id) not in pick:
+            continue
+        atoms = row.toatoms()
+        atoms.calc = calc
+        t0 = time.perf_counter()
+        try:
+            FIRE(atoms, logfile=None).run(fmax=0.05, steps=200)
+            times.append(time.perf_counter() - t0)
+        except Exception:
+            n_fail += 1
+    arr = np.array(times)
+    total = float(arr.sum())
+    out = {
+        "n_ok": int(len(arr)), "n_fail": int(n_fail),
+        "mean_sec_per_struct": float(arr.mean()) if len(arr) else 0.0,
+        "median_sec_per_struct": float(np.median(arr)) if len(arr) else 0.0,
+        "throughput_per_sec": (len(arr) / total) if total > 0 else 0.0,
+    }
+    Path("/data/benchmark_orb.json").write_text(json.dumps(out, indent=2))
+    vol.commit()
+    return out
+
+
 @app.local_entrypoint()
 def main(
     mode: str = "smoke", seed: int = 0, data_limit: int = 0,
     epochs: int = 0, patience: int = 0, split: str = "split_random",
+    sample: int = 300,
 ):
     import json
 
@@ -273,5 +374,12 @@ def main(
         print(train_topology.remote(seed=seed, config=cfg or None))
     elif mode == "eval":
         print(json.dumps(evaluate_models.remote(split=split), indent=2))
+    elif mode == "screen":
+        print(json.dumps(run_screen.remote(), indent=2))
+    elif mode == "benchmark_orb":
+        print(json.dumps(benchmark_orb.remote(sample=sample, seed=seed), indent=2))
     else:
-        raise SystemExit(f"unknown mode: {mode!r} (use 'smoke', 'train', 'train_topology', or 'eval')")
+        raise SystemExit(
+            f"unknown mode: {mode!r} "
+            "(use 'smoke', 'train', 'train_topology', 'eval', 'screen', or 'benchmark_orb')"
+        )

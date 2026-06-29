@@ -5,6 +5,8 @@ Commands:
                        write the unified Parquet dataset.
   orbscreen baseline -- Read a Parquet dataset and run the descriptor baseline
                         for both random and topology splits, printing JSON metrics.
+  orbscreen cascade -- Read screen artifacts (predictions + timing) and produce
+                       cost-accuracy cascade results + plots.
 """
 
 import argparse
@@ -45,8 +47,18 @@ def _baseline(args) -> None:
         print(f"wrote {args.out}")
 
 
+def _cascade(args) -> None:
+    from orbscreen.screen.report import run_cascade_analysis
+
+    res = run_cascade_analysis(
+        args.predictions, args.screen_timing, args.orb_benchmark, args.out_dir,
+    )
+    print(json.dumps(res["headline"], indent=2))
+    print(f"wrote {args.out_dir}/results_screen.json, cascade.json, cascade_*.png")
+
+
 def main() -> None:
-    p = argparse.ArgumentParser(prog="orbscreen", description="OrbScreen Phase 1 CLI")
+    p = argparse.ArgumentParser(prog="orbscreen", description="OrbScreen CLI")
     sub = p.add_subparsers(required=True, dest="command")
 
     b = sub.add_parser("build", help="Build the unified Parquet dataset")
@@ -58,6 +70,15 @@ def main() -> None:
     m.add_argument("--data", default="data/dataset.parquet", help="Input Parquet path")
     m.add_argument("--out", default=None, help="Optional path to write metrics JSON")
     m.set_defaults(func=_baseline)
+
+    c = sub.add_parser("cascade", help="Cost-accuracy cascade analysis from screen artifacts")
+    c.add_argument("--predictions", required=True, help="screen_predictions.parquet")
+    c.add_argument("--screen-timing", dest="screen_timing", required=True,
+                   help="screen_timing.json (surrogate throughput)")
+    c.add_argument("--orb-benchmark", dest="orb_benchmark", required=True,
+                   help="benchmark_orb.json (Orb-v3 throughput)")
+    c.add_argument("--out-dir", dest="out_dir", default=".", help="output directory")
+    c.set_defaults(func=_cascade)
 
     args = p.parse_args()
     args.func(args)

@@ -1,0 +1,7 @@
+{
+  "n_ok": 100,
+  "n_fail": 0,
+  "mean_sec_per_struct": 4.734251769839996,
+  "median_sec_per_struct": 3.2704869290000147,
+  "throughput_per_sec": 0.21122662009033735
+}

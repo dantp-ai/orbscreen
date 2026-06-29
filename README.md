@@ -87,3 +87,26 @@ modal run src/orbscreen/gnn/modal_app.py --mode eval --split split_random
 ```
 
 See `ATTRIBUTION.md` for data/model licenses.
+
+## Phase 3: scaled screen + cost-accuracy cascade
+
+The deep ensemble screens all 201,926 MOFs in one batched GPU pass (reusing the Phase 2 graph caches), then a cost-accuracy cascade routes only the hard candidates to real Orb-v3.
+
+| | Surrogate (this work) | Orb-v3 relaxation |
+|---|---|---|
+| Throughput (structs/s/GPU) | 149.1 | 0.211 |
+| Cost - inference only (USD/million) | 2.05 | 1,447 |
+| Cost - end-to-end incl. graph build (USD/million) | 10.29 | 1,447 |
+
+Routing 20% of candidates (highest-uncertainty policy) to Orb-v3 recovers 98.1% of Orb-v3's top-10% stable MOFs at 5.0x lower cost than relaxing everything.
+For energy ranking, routing the top-ranked 15% (confirm-top-ranked policy) recovers 99.8% at 6.6x lower cost.
+Full Pareto curves (three routing policies, stability and energy rankings) are in `cascade.json`; see `cascade_stability.png` and `cascade_energy.png`.
+
+Reproduce (Modal GPU for the screen + Orb-v3 timing benchmark, then local cascade analysis):
+
+```bash
+modal run src/orbscreen/gnn/modal_app.py --mode screen
+modal run src/orbscreen/gnn/modal_app.py --mode benchmark_orb --sample 100
+orbscreen cascade --predictions screen_predictions.parquet \
+  --screen-timing screen_timing.json --orb-benchmark benchmark_orb.json
+```

@@ -43,6 +43,19 @@ candidates.
 Baseline (gradient-boosted descriptors) for reference: MAE 0.076 both splits; enrichment
 5.24× / 5.37×; AUROC 0.881 / 0.924. The GNN ensemble beats it on every metric on both splits.
 
+## Throughput & cost (Phase 3)
+
+Measured on Modal A10G GPU (201,926-MOF screen) and a 100-structure Orb-v3 benchmark:
+
+| | Surrogate (this work) | Orb-v3 relaxation |
+|---|---|---|
+| Throughput (structs/s/GPU) | 149.1 | 0.211 |
+| Cost - inference only (USD/million) | 2.05 | 1,447 |
+| Cost - end-to-end incl. graph build (USD/million) | 10.29 | 1,447 |
+
+A cost-accuracy cascade routing 20% of candidates (uncertainty policy) to Orb-v3 recovers 98.1% of Orb-v3's top-10% stable MOFs at 5.0x lower cost than relaxing everything.
+For energy ranking, routing the top-ranked 15% (confirm-top-ranked policy) recovers 99.8% at 6.6x lower cost.
+
 ## Intended use
 - **Pre-screening / triage:** rank large MOF libraries by predicted P(stable) to prioritise
   expensive Orb-v3 (or DFT) confirmation — a cost-aware cascade.
