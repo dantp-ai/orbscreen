@@ -42,7 +42,20 @@ base_image = modal.Image.debian_slim(python_version="3.12").pip_install(
 )
 
 image = base_image.add_local_python_source("orbscreen")
-orb_image = base_image.pip_install("orb-models>=0.5").add_local_python_source("orbscreen")
+
+# orb-models 0.5.1 is the last release shipping the ASE ORBCalculator + atomic_system modules
+# AND the orb-v3 loaders (0.6+ dropped the calculator; 0.4.x predates orb-v3). orb-models pulls
+# its own torch/ase; this lean image does NOT need the GNN extras (torch_geometric, pymatgen).
+orb_image = (
+    modal.Image.debian_slim(python_version="3.12")
+    .pip_install(
+        "orb-models==0.5.1",
+        "pandas>=2.2",
+        "pyarrow>=16.0",
+        "huggingface_hub>=0.24",
+    )
+    .add_local_python_source("orbscreen")
+)
 
 app = modal.App("orbscreen-gnn", image=image)
 vol = modal.Volume.from_name("orbscreen-data", create_if_missing=True)
@@ -307,8 +320,6 @@ def benchmark_orb(sample: int = 300, seed: int = 0) -> dict:
     pick = set(test_ids[:sample])
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    # NOTE: verify the exact pretrained loader name against the installed orb-models version
-    # during the sample=2 smoke (Task 8); adjust this line if the API differs.
     orbff = pretrained.orb_v3_conservative_inf_omat(device=device)
     calc = ORBCalculator(orbff, device=device)
 
