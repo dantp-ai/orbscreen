@@ -22,14 +22,27 @@ CARRIED_DESCRIPTORS = [
 ]
 
 
-def load_corpus_graphs(parquet, cache_dir, samples_db="", source_split="split_random"):
+def load_corpus_graphs(
+    parquet: str,
+    cache_dir: str,
+    samples_db: str = "",
+    source_split: str = "split_random",
+) -> ConcatDataset:
     """The whole corpus = the source split's train+val+test caches concatenated (no rebuild)."""
     parts = [MofaGraphDataset(samples_db, parquet, source_split, v, cache_dir=cache_dir)
              for v in ("train", "val", "test")]
     return ConcatDataset(parts)
 
 
-def screen_corpus(checkpoints, parquet, cache_dir, *, samples_db="", device=None, batch_size=64):
+def screen_corpus(
+    checkpoints: list[str],
+    parquet: str,
+    cache_dir: str,
+    *,
+    samples_db: str = "",
+    device: str | None = None,
+    batch_size: int = 64,
+) -> tuple[pd.DataFrame, dict]:
     """Run the deep ensemble over the full corpus; return (DataFrame, timing).
 
     DataFrame is aligned to dataset.parquet by `gid` (== id) and carries CARRIED_DESCRIPTORS.

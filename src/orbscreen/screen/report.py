@@ -1,4 +1,3 @@
-# src/orbscreen/screen/report.py
 """Tie screen artifacts together into the cascade results: cost model + Pareto + headline.
 
 Inputs are the artifacts produced by the Modal `screen` and `benchmark_orb` runs:
@@ -18,15 +17,23 @@ from orbscreen.screen.cost import dollars_per_million, end_to_end_throughput
 from orbscreen.screen.plots import plot_cascade_pareto
 
 
-def _energy_target(y_energy, k):
+def _energy_target(y_energy: np.ndarray, k: int) -> np.ndarray:
     """Boolean mask of the k lowest-energy (most stable) structures = Orb-v3's top-k by energy."""
     target = np.zeros(len(y_energy), dtype=bool)
     target[np.argsort(y_energy)[:k]] = True
     return target
 
 
-def run_cascade_analysis(predictions_path, screen_timing_path, orb_benchmark_path, out_dir, *,
-                         shortlist_frac=0.10, target_recovery=0.95, usd_per_hour=None):
+def run_cascade_analysis(
+    predictions_path: str,
+    screen_timing_path: str,
+    orb_benchmark_path: str,
+    out_dir: str,
+    *,
+    shortlist_frac: float = 0.10,
+    target_recovery: float = 0.95,
+    usd_per_hour: float | None = None,
+) -> dict:
     df = pd.read_parquet(predictions_path)
     n = len(df)
     k = max(1, int(round(shortlist_frac * n)))

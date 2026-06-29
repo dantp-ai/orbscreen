@@ -5,6 +5,8 @@ Commands:
                        write the unified Parquet dataset.
   orbscreen baseline -- Read a Parquet dataset and run the descriptor baseline
                         for both random and topology splits, printing JSON metrics.
+  orbscreen cascade -- Read screen artifacts (predictions + timing) and produce
+                       cost-accuracy cascade results + plots.
 """
 
 import argparse
@@ -56,7 +58,7 @@ def _cascade(args) -> None:
 
 
 def main() -> None:
-    p = argparse.ArgumentParser(prog="orbscreen", description="OrbScreen Phase 1 CLI")
+    p = argparse.ArgumentParser(prog="orbscreen", description="OrbScreen CLI")
     sub = p.add_subparsers(required=True, dest="command")
 
     b = sub.add_parser("build", help="Build the unified Parquet dataset")

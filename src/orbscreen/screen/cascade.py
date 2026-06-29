@@ -12,7 +12,15 @@ from orbscreen.screen.cost import cascade_cost_per_million, speedup
 POLICIES = ("uncertainty", "confirm_top_ranked", "random")
 
 
-def routing_mask(n, budget, *, policy, surrogate_score, uncertainty, seed=0):
+def routing_mask(
+    n: int,
+    budget: float,
+    *,
+    policy: str,
+    surrogate_score: np.ndarray,
+    uncertainty: np.ndarray,
+    seed: int = 0,
+) -> np.ndarray:
     """Boolean mask of which of `n` candidates are routed to Orb-v3 at `budget` in [0, 1].
 
     Policies: 'uncertainty' (most-uncertain first), 'confirm_top_ranked' (highest
@@ -34,12 +42,14 @@ def routing_mask(n, budget, *, policy, surrogate_score, uncertainty, seed=0):
     return mask
 
 
-def combined_score(surrogate_score, oracle_score, routed):
+def combined_score(
+    surrogate_score: np.ndarray, oracle_score: np.ndarray, routed: np.ndarray
+) -> np.ndarray:
     """Oracle score where routed, surrogate score otherwise."""
     return np.where(routed, oracle_score, surrogate_score)
 
 
-def recovery_at_k(score, target, k):
+def recovery_at_k(score: np.ndarray, target: np.ndarray, k: int) -> float:
     """Recall of the boolean `target` set within the top-`k` by `score`: |top_k & target| / |target|."""
     target = np.asarray(target, dtype=bool)
     n_target = int(target.sum())
@@ -51,17 +61,17 @@ def recovery_at_k(score, target, k):
 
 def cascade_curve(
     *,
-    surrogate_score,
-    oracle_score,
-    uncertainty,
-    target,
-    shortlist_k,
-    orb_cost_per_million,
-    surrogate_cost_per_million,
-    policies=POLICIES,
-    budgets=None,
-    seed=0,
-):
+    surrogate_score: np.ndarray,
+    oracle_score: np.ndarray,
+    uncertainty: np.ndarray,
+    target: np.ndarray,
+    shortlist_k: int,
+    orb_cost_per_million: float,
+    surrogate_cost_per_million: float,
+    policies: tuple = POLICIES,
+    budgets: np.ndarray | None = None,
+    seed: int = 0,
+) -> dict:
     """Recovery-vs-cost points per routing policy.
 
     Returns {policy: {"budget": [...], "cost_per_million": [...], "recovery": [...]}}.
@@ -99,7 +109,9 @@ def cascade_curve(
     return out
 
 
-def headline(curve, *, surrogate_cpm, orb_cpm, target_recovery=0.95):
+def headline(
+    curve: dict, *, surrogate_cpm: float, orb_cpm: float, target_recovery: float = 0.95
+) -> dict:
     """Per policy, the cheapest budget reaching `target_recovery` and its speedup vs full Orb-v3.
 
     Returns {"target_recovery", "best" (highest-speedup policy or None), "per_policy" (sorted),

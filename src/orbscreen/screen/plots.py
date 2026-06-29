@@ -1,4 +1,3 @@
-# src/orbscreen/screen/plots.py
 """Plots for the Phase 3 cascade (recovery vs compute cost)."""
 
 import matplotlib
@@ -7,7 +6,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 
 
-def plot_cascade_pareto(curve, *, ranking_name, out_path):
+def plot_cascade_pareto(curve: dict, *, ranking_name: str, out_path: str) -> str:
     """Recovery vs $/million for each routing policy; saves a PNG and returns its path."""
     fig, ax = plt.subplots(figsize=(6, 4))
     for policy, d in curve.items():
