@@ -25,24 +25,24 @@ def _local_hf_token() -> str:
     return cached.read_text().strip() if cached.exists() else ""
 
 
-image = (
-    modal.Image.debian_slim(python_version="3.12")
-    .pip_install(
-        "torch>=2.4",
-        "torch_geometric>=2.6",
-        "ase>=3.23",
-        "pymatgen>=2024.5.1",
-        "pandas>=2.2",
-        "pyarrow>=16.0",
-        "scikit-learn>=1.5",
-        "scipy>=1.13",
-        "wandb>=0.28.0",
-        "huggingface_hub>=0.24",
-    )
-    .add_local_python_source("orbscreen")
+# Shared dependency layers. `add_local_python_source` must be the LAST step on each
+# image (Modal forbids build steps after add_local_*), so derive both images from a
+# common base and append the local source last on each.
+base_image = modal.Image.debian_slim(python_version="3.12").pip_install(
+    "torch>=2.4",
+    "torch_geometric>=2.6",
+    "ase>=3.23",
+    "pymatgen>=2024.5.1",
+    "pandas>=2.2",
+    "pyarrow>=16.0",
+    "scikit-learn>=1.5",
+    "scipy>=1.13",
+    "wandb>=0.28.0",
+    "huggingface_hub>=0.24",
 )
 
-orb_image = image.pip_install("orb-models>=0.5")
+image = base_image.add_local_python_source("orbscreen")
+orb_image = base_image.pip_install("orb-models>=0.5").add_local_python_source("orbscreen")
 
 app = modal.App("orbscreen-gnn", image=image)
 vol = modal.Volume.from_name("orbscreen-data", create_if_missing=True)
