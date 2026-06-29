@@ -1,0 +1,12 @@
+{
+  "n": 201926,
+  "seconds": 1353.99308396,
+  "throughput_per_sec": 149.1337011924984,
+  "checkpoints": [
+    "ckpt_seed1.pt",
+    "ckpt_seed2.pt",
+    "ckpt_seed3.pt",
+    "ckpt_seed4.pt",
+    "ckpt_seed5.pt"
+  ]
+}

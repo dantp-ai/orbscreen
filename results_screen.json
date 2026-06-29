@@ -1,0 +1,88 @@
+{
+  "n": 201926,
+  "shortlist_k": 20193,
+  "shortlist_frac": 0.1,
+  "surrogate_throughput_per_sec": 149.1337011924984,
+  "orb_throughput_per_sec": 0.21122662009033735,
+  "surrogate_cost_per_million": 2.04886992753671,
+  "surrogate_cost_per_million_end_to_end": 10.29886992753671,
+  "orb_cost_per_million": 1446.576929673332,
+  "headline": {
+    "stability": {
+      "target_recovery": 0.95,
+      "best": {
+        "policy": "uncertainty",
+        "budget": 0.2,
+        "recovery": 0.9813411630990718,
+        "cost_per_million": 291.3642558622031,
+        "speedup_vs_orb": 4.964840060400105
+      },
+      "per_policy": [
+        {
+          "policy": "uncertainty",
+          "budget": 0.2,
+          "recovery": 0.9813411630990718,
+          "cost_per_million": 291.3642558622031,
+          "speedup_vs_orb": 4.964840060400105
+        },
+        {
+          "policy": "confirm_top_ranked",
+          "budget": 0.2,
+          "recovery": 0.9823830270884637,
+          "cost_per_million": 291.3642558622031,
+          "speedup_vs_orb": 4.964840060400105
+        },
+        {
+          "policy": "random",
+          "budget": 0.65,
+          "recovery": 0.969785944307634,
+          "cost_per_million": 942.3238742152024,
+          "speedup_vs_orb": 1.5351165021453879
+        }
+      ],
+      "surrogate_only_recovery": {
+        "uncertainty": 0.6191513544231863,
+        "confirm_top_ranked": 0.6191513544231863,
+        "random": 0.6191513544231863
+      }
+    },
+    "energy": {
+      "target_recovery": 0.95,
+      "best": {
+        "policy": "confirm_top_ranked",
+        "budget": 0.15000000000000002,
+        "recovery": 0.9983162482048235,
+        "cost_per_million": 219.03540937853654,
+        "speedup_vs_orb": 6.604306279873501
+      },
+      "per_policy": [
+        {
+          "policy": "confirm_top_ranked",
+          "budget": 0.15000000000000002,
+          "recovery": 0.9983162482048235,
+          "cost_per_million": 219.03540937853654,
+          "speedup_vs_orb": 6.604306279873501
+        },
+        {
+          "policy": "uncertainty",
+          "budget": 0.55,
+          "recovery": 0.950279799930669,
+          "cost_per_million": 797.6661812478693,
+          "speedup_vs_orb": 1.8135116715244295
+        },
+        {
+          "policy": "random",
+          "budget": 0.6000000000000001,
+          "recovery": 0.9505769326004061,
+          "cost_per_million": 869.995027731536,
+          "speedup_vs_orb": 1.6627416060586018
+        }
+      ],
+      "surrogate_only_recovery": {
+        "uncertainty": 0.9208141435150795,
+        "confirm_top_ranked": 0.9208141435150795,
+        "random": 0.9208141435150795
+      }
+    }
+  }
+}
