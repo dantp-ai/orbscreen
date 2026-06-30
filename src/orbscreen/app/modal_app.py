@@ -30,7 +30,7 @@ vol = modal.Volume.from_name("orbscreen-data", create_if_missing=False)
 
 @app.function(volumes={"/data": vol}, max_containers=1, scaledown_window=300)
 @modal.concurrent(max_inputs=100)
-@modal.asgi_app()
+@modal.asgi_app(requires_proxy_auth=True)  # gate behind Modal proxy-auth tokens (Modal-Key/Modal-Secret)
 def ui():
     """Serve the Gradio Blocks via FastAPI. max_containers=1 for Gradio sticky sessions;
     min_containers defaults to 0 (scale-to-zero); scaledown_window keeps it warm 5 min."""
