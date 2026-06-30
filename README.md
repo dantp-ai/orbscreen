@@ -110,3 +110,16 @@ modal run src/orbscreen/gnn/modal_app.py --mode benchmark_orb --sample 100
 orbscreen cascade --predictions screen_predictions.parquet \
   --screen-timing screen_timing.json --orb-benchmark benchmark_orb.json
 ```
+
+## Phase 4: live demo + carbon-capture shortlist
+
+A Modal-hosted Gradio demo serves the surrogate on CPU (scale-to-zero).
+Upload a CIF/POSCAR or pick a screened MOF by id to get calibrated P(stable) + uncertainty + predicted energy/atom; the carbon-capture leaderboard ranks screened MOFs by a geometric proxy score.
+
+
+The carbon-capture score is `P(stable) * 1[PLD >= 3.3 A] * normalize(surface area)` - a geometric shortlist proxy (not GCMC).
+
+```bash
+uv sync --extra dev --extra gnn --extra app
+modal deploy src/orbscreen/app/modal_app.py
+```
