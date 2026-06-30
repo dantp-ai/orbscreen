@@ -36,14 +36,20 @@ def build_demo(predictions_df: pd.DataFrame, checkpoints: list) -> gr.Blocks:
         )
 
     def on_pick(gid) -> str:
-        if gid is None or int(gid) not in scored.index:
+        try:
+            gid_int = int(gid) if gid is not None else None
+        except (TypeError, ValueError):
             return "Pick a known MOF id."
-        row = scored.loc[int(gid)]
+        if gid_int is None or gid_int not in scored.index:
+            return "Pick a known MOF id."
+        row = scored.loc[gid_int]
+        asa = row["geom_asa_m2_per_g"]
+        asa_str = "N/A" if pd.isna(asa) else f"{asa:.0f}"
         return (
             f"P(stable) = {row['p_stable']:.3f} +/- {row['p_stable_std']:.3f}\n"
             f"Energy/atom = {row['energy_pred']:.3f} +/- {row['energy_std']:.3f} eV\n"
             f"Carbon-capture score = {row['carbon_score']:.3f} "
-            f"(PLD {row['geom_pld']:.2f} A, ASA {row['geom_asa_m2_per_g']:.0f} m2/g)"
+            f"(PLD {row['geom_pld']:.2f} A, ASA {asa_str} m2/g)"
         )
 
     with gr.Blocks(title="OrbScreen", theme="soft") as demo:
