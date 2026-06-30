@@ -27,6 +27,7 @@ gnn = [
 ]
 orb = ["orb-models==0.5.1"]  # last release with both the orb-v3 loaders and the ASE
 # ORBCalculator (0.6+ dropped it); used only by the Modal benchmark_orb run.
+app = ["gradio~=5.7", "fastapi[standard]>=0.115"]  # Gradio demo (Modal-served); not needed in CI
 
 [project.scripts]
 orbscreen = "orbscreen.cli:main"
