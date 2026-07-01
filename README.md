@@ -119,6 +119,22 @@ Upload a CIF/POSCAR or pick a screened MOF by id to get calibrated P(stable) + u
 
 The carbon-capture score is `P(stable) * 1[PLD >= 3.3 A] * normalize(surface area)` - a geometric shortlist proxy (not GCMC).
 
+### Demo screenshots
+
+Predict tab: upload a CIF/POSCAR or pick a screened MOF by id.
+
+![OrbScreen demo - Predict tab](figures/1.png)
+
+A prediction: calibrated P(stable) + uncertainty + energy/atom, with the carbon-capture score shown for screened MOFs.
+
+![OrbScreen demo - prediction result](figures/3.png)
+
+Carbon-capture leaderboard: top screened MOFs ranked by the proxy score.
+
+![OrbScreen demo - carbon-capture leaderboard](figures/2.png)
+
+Deploy:
+
 ```bash
 uv sync --extra dev --extra gnn --extra app
 modal deploy src/orbscreen/app/modal_app.py
