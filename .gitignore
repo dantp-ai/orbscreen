@@ -10,3 +10,5 @@ __pycache__/
 wandb/
 .superpowers/
 .graph_cache/
+demo_cifs/
+.DS_Store
